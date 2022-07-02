@@ -10,7 +10,7 @@ from gym.wrappers import FrameStack, GrayScaleObservation
 
 from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv
 
-def train(env):
+def train(env, agent, callback):
     done = True
     for step in range(100000):
         if done:

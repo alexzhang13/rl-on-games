@@ -1,5 +1,9 @@
+SAVE_PATH: './output/checkpoints'
+LOG_DIR: './output/logs'
+
 model:
   model_name: DQN
+  learning_rate: 1e-6
 
 environment:
   episodes: 1000
