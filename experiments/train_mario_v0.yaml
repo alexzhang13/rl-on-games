@@ -1,0 +1,7 @@
+model:
+  model_name: DQN
+
+environment:
+  episodes: 1000
+  max_step: 100000
+  version: 'SuperMarioBros-v0'
