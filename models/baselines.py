@@ -17,7 +17,7 @@ class TrainAndLoggingCallback(BaseCallback):
 
     def _on_step(self):
         if self.n_calls % self.frequency == 0:
-            save_path = os.path.join(self.path, 'checkpoint_{}'.format(self.num_calls))
+            save_path = os.path.join(self.path, 'checkpoint_{}'.format(self.n_calls))
             self.model.save(save_path)
         
         return True
@@ -25,3 +25,7 @@ class TrainAndLoggingCallback(BaseCallback):
 def get_baseline(name):
     if name == 'PPO':
         return PPO
+    
+def load_baseline_from_checkpoint(name, checkpoint_path):
+    model = get_baseline(name)
+    model.load('checkpoint_path')
