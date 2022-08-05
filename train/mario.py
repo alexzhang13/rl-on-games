@@ -12,6 +12,7 @@ from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv
 
 def train(env, agent, episodes, logger, render=False):
     for ep in range(episodes):
+        print(f"episode {ep+1}")
         state = env.reset()
         while True:
             
@@ -24,7 +25,9 @@ def train(env, agent, episodes, logger, render=False):
             
             logger.log_step(reward, loss, q)
             
-            if done:
+            state = new_state
+            
+            if done or info[0]["flag_get"]:
                 break
             
             if render:
@@ -55,7 +58,8 @@ def evaluate(env, agent, render=False):
 def env_init(environment_name='SuperMarioBros-v0',
             n_stack=4,
             grayscale=True, 
-            stacked_frames=True):
+            stacked_frames=True,
+            seed=7):
     """
     Initialize gym environment for mario game.
     args: 
@@ -65,6 +69,10 @@ def env_init(environment_name='SuperMarioBros-v0',
     """
     # create base mario environment
     env = gym_super_mario_bros.make(environment_name)
+    
+    # set seed
+    env.seed(seed)
+    
     # simplify action space
     env = JoypadSpace(env, SIMPLE_MOVEMENT)
     # grayscale images

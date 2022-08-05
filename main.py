@@ -15,12 +15,15 @@ from models import (
 from utils import (
     logger
 )
+import time
+from torch.utils.tensorboard import SummaryWriter
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, help="Location of config file to run", 
                     default='experiments/mario/train_mario_v0.yaml')
 parser.add_argument('--evaluate', action='store_true', help="Evaluate model")
 args = parser.parse_args()
+SEED = 7
 
 def retro_test():
     env = retro.make(game='Airstriker-Genesis')
@@ -59,7 +62,7 @@ def main():
         config = yaml.load(f, Loader=yaml.FullLoader)
         
     # TODO: Configure with YAML
-    env = ENV.env_init(n_stack=config['environment']['n_stack'])
+    env = ENV.env_init(n_stack=config['environment']['n_stack'], seed=SEED)
     print('Action Space:', env.action_space)
     print('Observation Space:', env.observation_space.shape)
     
@@ -68,6 +71,10 @@ def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using CUDA: {use_cuda}")
     print()
+    
+    # configure tensorboard
+    # run_name = f"mario__{int(time.time())}"
+    # writer = SummaryWriter(f"runs/{run_name}")
     
     # set up logging and saving
     save_dir = Path("output/") / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
@@ -92,6 +99,6 @@ def main():
         
 
 if __name__ == "__main__":
-	np.random.seed(7)
-	random.seed(7)
+	np.random.seed(SEED)
+	random.seed(SEED)
 	main()

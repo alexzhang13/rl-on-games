@@ -157,10 +157,10 @@ class DQNAgent(Agent):
 
     def save(self):
         save_path = (
-            self._save_dir / f"mario_net_{int(self.curr_step // self.save_every)}.chkpt"
+            self._save_dir / f"mario_net_{int(self._curr_step // self._save_model_iter)}.chkpt"
         )
         torch.save(
             dict(model=self._policy_network.state_dict(), exploration_rate=self._epsilon),
             save_path,
         )
-        print(f"DQN saved to {save_path} at step {self.curr_step}")
+        print(f"DQN saved to {save_path} at step {self._curr_step}")
