@@ -62,6 +62,8 @@ class DQNAgent(Agent):
         self._update_freq = update_freq
         self._device=device
         
+        self._target_network = self._target_network.to(device)
+        self._policy_network = self._policy_network.to(device)
         self._optimizer = torch.optim.Adam(self._policy_network.parameters(), lr=lr)
     
     
