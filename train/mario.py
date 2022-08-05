@@ -12,7 +12,6 @@ from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv
 
 def train(env, agent, episodes, logger, render=False):
     for ep in range(episodes):
-        print(f"episode {ep+1}")
         state = env.reset()
         while True:
             
