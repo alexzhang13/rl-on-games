@@ -1,4 +1,5 @@
 import gym_super_mario_bros
+import torch
 
 # Joypad Wrapper
 from nes_py.wrappers import JoypadSpace
@@ -9,6 +10,23 @@ from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
 from gym.wrappers import FrameStack, GrayScaleObservation, ResizeObservation
 
 from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv
+
+def train_vectorized(envs, agent, writer, num_envs, 
+                     device, batch_size, num_steps, render=False):
+    
+    global_step = 0
+    next_obs = torch.Tensor(envs.reset()).to(device)
+    next_done = torch.zeros(num_envs).to(device)
+    num_updates = num_steps // batch_size
+    
+    print('obs shape', next_obs.shape)
+    
+    # Loop through updates, PPO handles train loop internally and rollouts
+    for update in range(1, num_updates + 1):
+        global_step = agent.train(envs, batch_size, next_obs, next_done, update, num_updates, global_step, writer)
+    
+    writer.close()
+    envs.close()
 
 def train(env, agent, episodes, logger, render=False):
     for ep in range(episodes):
@@ -45,8 +63,10 @@ def evaluate(env, agent, render=False):
     for step in range(100000):
         if done:
             env.reset()
-        action, _ = agent.predict(state)
-        state, reward, done, info = env.step(action)
+        print(type(state))
+        action = [agent.action(state)]
+        new_state, reward, done, info = env.step(action)
+        state = new_state
         if render:
             env.render()
     env.close()
@@ -66,26 +86,35 @@ def env_init(environment_name='SuperMarioBros-v0',
         grayscale: whether to grayscale frames
         stacked_frames: whether to stack frames
     """
-    # create base mario environment
-    env = gym_super_mario_bros.make(environment_name)
-    
-    # set seed
-    env.seed(seed)
-    
-    # simplify action space
-    env = JoypadSpace(env, SIMPLE_MOVEMENT)
-    # grayscale images
-    if grayscale:
-        env = GrayScaleObservation(env, keep_dim=True)
+    def make_env():
+        # create base mario environment
+        env = gym_super_mario_bros.make(environment_name)
+        
+        # set seed
+        env.seed(seed)
+        env.action_space.seed(seed)
+        env.observation_space.seed(seed)
+        
+        # simplify action space
+        env = JoypadSpace(env, SIMPLE_MOVEMENT)
+        
+        # grayscale images
+        if grayscale:
+            env = GrayScaleObservation(env, keep_dim=True)
 
-	# resize to 84x84 
-    env = ResizeObservation(env, shape=84)
+        # resize to 84x84 
+        env = ResizeObservation(env, shape=84)
+        # env = FrameStack(env, 4)
 
-    # wrap in vectorized frames 
-    if stacked_frames:
-        env = DummyVecEnv([lambda: env])
-        env = VecFrameStack(env, n_stack, channels_order='last')
+        # wrap in vectorized frames 
+        if stacked_frames:
+            env = DummyVecEnv([lambda: env])
+            env = VecFrameStack(env, n_stack, channels_order='last')
 
-    return env
+        return env
+    return make_env
+
+
+
 
 

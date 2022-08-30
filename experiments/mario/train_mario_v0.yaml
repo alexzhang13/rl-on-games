@@ -1,11 +1,14 @@
 SAVE_PATH: './output/checkpoints'
 LOG_DIR: './output/logs'
+SEED: 7
 
 model:
   model_name: DQN
   learning_rate: 0.000001
 
 environment:
+  sync_vector_env: false
+  num_envs: 1
   n_stack: 4
   episodes: 10000
   max_step: 100000

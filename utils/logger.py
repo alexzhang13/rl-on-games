@@ -7,7 +7,7 @@ class MetricLogger:
     '''
     Basic logging functionality from https://pytorch.org/tutorials/intermediate/mario_rl_tutorial.html
     '''
-    def __init__(self, save_dir):
+    def __init__(self, save_dir, tfwriter):
         self.save_log = save_dir / "log"
         with open(self.save_log, "w") as f:
             f.write(
@@ -19,8 +19,10 @@ class MetricLogger:
         self.ep_lengths_plot = save_dir / "length_plot.jpg"
         self.ep_avg_losses_plot = save_dir / "loss_plot.jpg"
         self.ep_avg_qs_plot = save_dir / "q_plot.jpg"
+        self.tfwriter = tfwriter
 
         # History metrics
+        self.ep_num = 0
         self.ep_rewards = []
         self.ep_lengths = []
         self.ep_avg_losses = []
@@ -58,6 +60,12 @@ class MetricLogger:
             ep_avg_q = np.round(self.curr_ep_q / self.curr_ep_loss_length, 5)
         self.ep_avg_losses.append(ep_avg_loss)
         self.ep_avg_qs.append(ep_avg_q)
+        
+        # Tensorboard save states
+        self.tfwriter.add_scalar("mean loss", ep_avg_loss, global_step=self.ep_num)
+        self.tfwriter.add_scalar("reward", self.curr_ep_reward, global_step=self.ep_num)
+        
+        self.ep_num += 1
 
         self.init_episode()
 

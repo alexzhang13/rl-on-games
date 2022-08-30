@@ -1,4 +1,4 @@
-import models.replaymemory
+import models.networks.replaymemory
 
 def test_replay():
     pass
