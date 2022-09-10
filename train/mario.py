@@ -1,5 +1,7 @@
 import gym_super_mario_bros
 import torch
+import torch.multiprocessing as _mp
+import numpy as np
 
 # Joypad Wrapper
 from nes_py.wrappers import JoypadSpace
@@ -11,19 +13,28 @@ from gym.wrappers import FrameStack, GrayScaleObservation, ResizeObservation
 
 from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv
 
-def train_vectorized(envs, agent, writer, num_envs, 
+def train_vectorized(envs, agent, mp, config, writer, num_envs, 
                      device, batch_size, num_steps, render=False):
     
-    global_step = 0
-    next_obs = torch.Tensor(envs.reset()).to(device)
-    next_done = torch.zeros(num_envs).to(device)
-    num_updates = num_steps // batch_size
+    agent.model.share_memory()
+    process = mp.Process(target=eval, args=(config, agent.model, envs.num_states, envs.num_actions))
+    process.start()
     
-    print('obs shape', next_obs.shape)
+    [agent_conn.send(("reset", None)) for agent_conn in envs.agent_conns]
+    next_obs = [agent_conn.recv() for agent_conn in envs.agent_conns]
+
+    next_obs = torch.from_numpy(np.concatenate(next_obs, 0))
+    if torch.cuda.is_available():
+        next_obs = next_obs.cuda()
+    
+    global_step = 0
+    next_done = torch.zeros(len(next_obs)).to(device)
+    num_updates = num_steps // batch_size
     
     # Loop through updates, PPO handles train loop internally and rollouts
     for update in range(1, num_updates + 1):
-        global_step = agent.train(envs, batch_size, next_obs, next_done, update, num_updates, global_step, writer)
+        print('update #', update)
+        global_step = agent.train(envs, batch_size, next_obs, next_done, update, num_updates, global_step, writer, render)
     
     writer.close()
     envs.close()

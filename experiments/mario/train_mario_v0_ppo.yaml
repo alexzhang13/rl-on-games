@@ -20,5 +20,8 @@ environment:
   sync_vector_env: true
   num_envs: 4
   episodes: 10000
-  max_step: 100000
+  max_step: 1000000
   version: 'SuperMarioBros-v0'
+  action_type: 'simple'
+  world: 1
+  stage: 1

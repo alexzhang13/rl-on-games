@@ -16,7 +16,7 @@ class PPO (nn.Module):
     '''
     def __init__(self, obs_shape, num_actions):
         super(PPO, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, stride=2, padding=1)
+        self.conv1 = nn.Conv2d(obs_shape, 32, 3, stride=2, padding=1)
         self.conv2 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
         self.conv3 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
         self.conv4 = nn.Conv2d(32, 32, 3, stride=2, padding=1)
@@ -61,8 +61,8 @@ class PPOAgent (Agent):
                  target_kl=None,
                  lr=1e-4):
         super(Agent, self).__init__()
-        self.PPO = PPO(obs_shape, num_actions).to(device)
-        self.optim = torch.optim.Adam(self.PPO.parameters(), lr=lr, eps=1e-5)
+        self.model = PPO(obs_shape, num_actions).to(device)
+        self.optim = torch.optim.Adam(self.model.parameters(), lr=lr, eps=1e-5)
         self.lr = lr
         self.num_rollout_steps = num_rollout_steps
         self.num_envs = num_envs
@@ -78,14 +78,14 @@ class PPOAgent (Agent):
         self.target_kl = target_kl
     
     def get_action_and_value (self, obs, action=None):
-        obs = obs.permute(0, 3, 1, 2) # N H W C -> N C H W
-        logits, values = self.PPO(obs)
+        # obs = obs.permute(0, 3, 1, 2) # N H W C -> N C H W
+        logits, values = self.model(obs)
         probs = torch.distributions.Categorical(logits=logits)
         if action is None:
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), values
     
-    def train (self, envs, batch_size, next_obs, next_done, step, max_steps, global_step, writer):
+    def train (self, envs, batch_size, next_obs, next_done, step, max_steps, global_step, writer, render):
         # learning rate annealing
         frac = 1.0 - (step - 1.0) / max_steps
         lr = frac * self.lr
@@ -93,7 +93,6 @@ class PPOAgent (Agent):
         
         # define rollout Tensors
         obs = torch.zeros((self.num_rollout_steps, self.num_envs) + envs.single_observation_space.shape).to(self.device)
-        
         actions = torch.zeros((self.num_rollout_steps, self.num_envs) + envs.single_action_space.shape).to(self.device)
         logprobs = torch.zeros((self.num_rollout_steps, self.num_envs)).to(self.device)
         rewards = torch.zeros((self.num_rollout_steps, self.num_envs)).to(self.device)
@@ -112,9 +111,19 @@ class PPOAgent (Agent):
             actions[step] = action
             logprobs[step] = logprob
             
-            next_obs, reward, next_done, info = envs.step(action.cpu().numpy())
+            if torch.cuda.is_available():
+                [agent_conn.send(("step", act)) for agent_conn, act in zip(envs.agent_conns, action.cpu())]
+            else:
+                [agent_conn.send(("step", act)) for agent_conn, act in zip(envs.agent_conns, action)]
+
+            next_obs, reward, next_done, info = zip(*[agent_conn.recv() for agent_conn in envs.agent_conns])
+            # next_obs, reward, next_done, info = envs.step(action.cpu().numpy())
+            
+            if render:
+                print(info)
+            
             rewards[step] = torch.tensor(reward).to(self.device).view(-1)
-            next_obs = torch.Tensor(next_obs).to(self.device) 
+            next_obs = torch.from_numpy(np.concatenate(next_obs, 0)).to(self.device) 
             next_done = torch.Tensor(next_done).to(self.device)
              
             for item in info:
@@ -196,7 +205,7 @@ class PPOAgent (Agent):
                 # backprop computed loss
                 self.optim.zero_grad()
                 loss.backward()
-                nn.utils.clip_grad_norm(self.PPO.parameters(), self.max_grad_norm)
+                nn.utils.clip_grad_norm(self.model.parameters(), self.max_grad_norm)
                 self.optim.step()
         
             if self.target_kl is not None:
@@ -210,11 +219,12 @@ class PPOAgent (Agent):
         
         # write to tensorboard
         writer.add_scalar("charts/learning_rate", self.optim.param_groups[0]["lr"], global_step)
+        writer.add_scalar("charts/rewards", rewards.mean(), global_step)
         writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
         writer.add_scalar("losses/policy_loss", pg_loss.item(), global_step)
         writer.add_scalar("losses/entropy", entropy_loss.item(), global_step)
         writer.add_scalar("losses/approx_kl", approx_kl.item(), global_step)
-        writer.add_scalar("losses/clipped_frac", np.mean(clipfracs), global_step)
+        writer.add_scalar("losses/clipped_frac", sum(clipfracs)/len(clipfracs), global_step)
         writer.add_scalar("losses/explained_variance", explained_var, global_step)
         
         return global_step
